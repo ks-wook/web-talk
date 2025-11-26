@@ -42,6 +42,9 @@ dependencies {
     // wss
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.webjars:stomp-websocket:2.3.3-1'
+
+    // jwt
+    implementation 'com.auth0:java-jwt:3.12.0'
 }
 
 tasks.named('test') {

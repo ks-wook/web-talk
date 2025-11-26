@@ -10,6 +10,7 @@ import com.example.OnlineOpenChat.domain.repository.UserRepository;
 import com.example.OnlineOpenChat.domain.repository.entity.User;
 import com.example.OnlineOpenChat.domain.repository.entity.UserCredentials;
 import com.example.OnlineOpenChat.security.Hasher;
+import com.example.OnlineOpenChat.security.JWTProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -81,9 +82,13 @@ public class AuthService {
 
         }).orElseThrow(() -> new CustomException(ErrorCode.MIS_MATCH_PASSWORD));
 
-        return new LoginResponse(ErrorCode.SUCCESS, "Token");
+        String token = JWTProvider.createRefreshToken((request.name()));
+        return new LoginResponse(ErrorCode.SUCCESS, token);
     }
 
+    public String getUserFromToken(String token) {
+        return JWTProvider.getUserFromToken(token);
+    }
     /**
      * 새 유저 생성
      * @param name
