@@ -41,7 +41,7 @@ public class JWTProvider {
         JWTProvider.tokenTimeForMinute = tokenTime;
     }
 
-    @Value("${refresh-token-time}")
+    @Value("${token.refresh-token-time}")
     public void setRefreshTokenTimeForMinute(long refreshTokenTime) {
         JWTProvider.refreshTokenTimeForMinute = refreshTokenTime;
     }
