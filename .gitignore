@@ -39,3 +39,6 @@ out/
 .vscode/
 
 src/main/resources/application.yaml
+
+### 환경 변수 ###
+.env
