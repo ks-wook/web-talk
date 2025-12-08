@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -120,6 +121,18 @@ public class JWTProvider {
 
         if (bearer != null && bearer.startsWith("Bearer ")) {
             return bearer.substring(7);
+        }
+        return null;
+    }
+
+    /**
+     * authorization 헤더에서 토큰값 추출
+     * @param header
+     * @return
+     */
+    public static String extractToken(String header) {
+        if(StringUtils.hasText(header) && header.startsWith("Bearer ")) {
+            return header.substring(7);
         }
         return null;
     }

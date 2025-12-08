@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,6 +18,7 @@ import java.util.Collections;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtFilter extends OncePerRequestFilter {
 
     /**
@@ -34,6 +36,9 @@ public class JwtFilter extends OncePerRequestFilter {
             FilterChain filterChain) throws ServletException, IOException {
         
         String token = JWTProvider.resolveToken(request);
+
+        log.info("API 요청 경로 : {}", request.getRequestURI());
+        log.info("세팅된 쿠키값 : {}", (Object) request.getCookies());
 
         // 추출한 토큰이 유효한지 검증
         if (token != null && JWTProvider.validateToken(token)) {
