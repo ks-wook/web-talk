@@ -16,7 +16,7 @@ public class ChatRedisPublisher {
     private final ChannelTopic chatTopic;
 
     /**
-     * 메시지 전송
+     * 메시지 브로커(Redis)로 메시지 전송
      * @param message
      */
     public void publish(Object message) {
