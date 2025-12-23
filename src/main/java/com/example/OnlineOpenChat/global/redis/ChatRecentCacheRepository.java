@@ -1,6 +1,6 @@
 package com.example.OnlineOpenChat.global.redis;
 
-import com.example.OnlineOpenChat.domain.chat.model.ChatMessage;
+import com.example.OnlineOpenChat.domain.chat.mongo.document.ChatMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,6 +19,7 @@ public class ChatRecentCacheRepository {
         return "chat:room:" + roomId + ":recent";
     }
 
+    /*
     public void addToRecent(ChatMessage message) {
         try {
             String key = getRecentKey(message.getRoom().getId());
@@ -33,6 +34,8 @@ public class ChatRecentCacheRepository {
             throw new RuntimeException("Recent Cache 저장 실패", e);
         }
     }
+    */
+
 
     public List<ChatMessage> getRecent(Long roomId, int limit) {
         String key = getRecentKey(roomId);

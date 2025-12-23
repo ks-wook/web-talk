@@ -1,6 +1,7 @@
 package com.example.OnlineOpenChat.global.redis;
 
-import com.example.OnlineOpenChat.domain.chat.model.ChatMessage;
+import com.example.OnlineOpenChat.domain.chat.mongo.document.ChatMessage;
+import com.example.OnlineOpenChat.domain.chat.mongo.service.ChatMessageService;
 import com.example.OnlineOpenChat.domain.repository.ChatRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
@@ -14,10 +15,15 @@ import org.springframework.stereotype.Component;
 import java.net.InetAddress;
 import java.util.UUID;
 
+import static com.example.OnlineOpenChat.global.redis.Constants.CHAT_CONSUMER_GROUP;
+import static com.example.OnlineOpenChat.global.redis.Constants.CHAT_STREAM_KEY;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class ChatStreamConsumer {
+
+    private final ChatMessageService chatMessageService;
 
     private final StringRedisTemplate redisTemplate;
     private final ChatRepository chatMessageRepository;
@@ -41,29 +47,18 @@ public class ChatStreamConsumer {
      */
     @PostConstruct
     public void createGroup() {
-        String key = "chat:room:1:stream";
-        String group = "chat-group";
+//        String key = "chat:room:1:stream";
+//        String group = "chat-group";
 
         try {
-            // 1) Stream 생성: dummy 메시지 추가 -> 스트림을 열기위한 용도
-            //Map<String, String> initBody = Map.of("data", "init");
-//
-//            RecordId dummyId = redisTemplate.opsForStream().add(
-//                    StreamRecords.mapBacked(initBody).withStreamKey(key)
-//            );
-
-            // 2) Consumer Group 생성
+            // Consumer Group 생성
             redisTemplate.opsForStream().createGroup(
-                    key,
+                    CHAT_STREAM_KEY,
                     ReadOffset.from("0-0"),
-                    group
+                    CHAT_CONSUMER_GROUP
             );
 
-            // 3) dummy 메시지 제거
-            // redisTemplate.opsForStream().delete(key, dummyId);
-
-            log.info("Stream + ConsumerGroup initialized: {}", group);
-
+            log.info("Stream + ConsumerGroup initialized: {}", CHAT_CONSUMER_GROUP);
 
         } catch (Exception e) {
             log.info("Consumer Group already exists or Stream already initialized");
@@ -78,10 +73,12 @@ public class ChatStreamConsumer {
         try {
             String json = record.getValue().get("data");
 
-            log.info("test");
             log.info("[STREAM] consuming: {}", json);
 
             ChatMessage msg = objectMapper.readValue(json, ChatMessage.class);
+
+            // MongoDB 채팅로그 기록
+            chatMessageService.saveMessage(msg);
 
             log.info("[STREAM] consumed: {}", msg);
 

@@ -1,15 +1,16 @@
 package com.example.OnlineOpenChat.global.redis;
 
-import com.example.OnlineOpenChat.domain.chat.model.ChatMessage;
+import com.example.OnlineOpenChat.domain.chat.mongo.document.ChatMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.util.Map;
+
+import static com.example.OnlineOpenChat.global.redis.Constants.CHAT_STREAM_KEY;
 
 @Repository
 @RequiredArgsConstructor
@@ -18,9 +19,11 @@ public class ChatStreamRepository {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /*
     private String getStreamKey(Long roomId) {
         return "chat:room:" + roomId + ":stream";
     }
+     */
 
     /**
      * 스트림에 메시지 밀어넣는 함수
@@ -34,7 +37,7 @@ public class ChatStreamRepository {
 
             RecordId recordId = redisTemplate.opsForStream().add(
                     StreamRecords.mapBacked(map)
-                            .withStreamKey(getStreamKey(message.getRoom().getId()))
+                            .withStreamKey(CHAT_STREAM_KEY) // roomId를 기반으로 스트림 키 생성
             );
 
         } catch (Exception e) {

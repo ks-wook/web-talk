@@ -14,6 +14,9 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import java.time.Duration;
 import java.util.UUID;
 
+import static com.example.OnlineOpenChat.global.redis.Constants.CHAT_CONSUMER_GROUP;
+import static com.example.OnlineOpenChat.global.redis.Constants.CHAT_STREAM_KEY;
+
 @Configuration
 @RequiredArgsConstructor
 public class RedisStreamConfig {
@@ -34,8 +37,8 @@ public class RedisStreamConfig {
 
         // 로그성 이벤트 이므로 autoAck 사용하여 처리 -> 채팅 등의 실시간성 서비스에 적합
         container.receiveAutoAck(
-                Consumer.from("chat-group", generateConsumerName()),
-                StreamOffset.create("chat:room:1:stream", ReadOffset.lastConsumed()),
+                Consumer.from(CHAT_CONSUMER_GROUP, generateConsumerName()),
+                StreamOffset.create(CHAT_STREAM_KEY, ReadOffset.lastConsumed()),
                 chatStreamConsumer::consume
         );
 

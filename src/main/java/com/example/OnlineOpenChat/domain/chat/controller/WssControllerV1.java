@@ -1,6 +1,7 @@
 package com.example.OnlineOpenChat.domain.chat.controller;
 
 import com.example.OnlineOpenChat.domain.chat.model.Message;
+import com.example.OnlineOpenChat.domain.chat.mongo.document.ChatMessage;
 import com.example.OnlineOpenChat.domain.chat.service.ChatServiceV1;
 import com.example.OnlineOpenChat.global.redis.RedisMessage;
 import com.example.OnlineOpenChat.global.redis.publisher.ChatRedisPublisher;
@@ -10,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
+
+import java.time.LocalDateTime;
 
 @RequiredArgsConstructor
 @Controller
@@ -22,6 +25,8 @@ public class WssControllerV1 {
 
     private final ChatServiceV1 chatServiceV1;
     private final ChatRedisPublisher publisher;
+
+    private final ChatStreamRepository chatStreamRepository;
 
 
     /**
@@ -49,7 +54,14 @@ public class WssControllerV1 {
         // TEST =================================================
 
         // 2) Redis Stream으로 실시간 채팅 로그 기록
-        // chatStreamRepository.addToStream(chatMessage);
+        ChatMessage chatMessage = ChatMessage.builder()
+                .roomId(Long.parseLong(roomId))
+                .senderName(msg.getSenderName())
+                .message(msg.getMessage())
+                .sentAt(System.currentTimeMillis())
+                .build();
+
+        chatStreamRepository.addToStream(chatMessage);
 
         // 3) 메시지 브로커에게 메시지 퍼블리싱
         publisher.publish(msg);

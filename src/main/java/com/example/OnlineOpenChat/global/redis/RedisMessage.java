@@ -13,7 +13,6 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class RedisMessage {
-    // TODO : 추후에 enum 으로 변경 고려
     /**
      * 메시지의 타입
      */
