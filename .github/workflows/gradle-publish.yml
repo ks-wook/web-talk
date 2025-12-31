@@ -67,6 +67,12 @@ jobs:
             chmod 600 /home/ec2-user/web-talk-private-key.pem
             
             ssh -i /home/ec2-user/web-talk-private-key.pem -o StrictHostKeyChecking=no ec2-user@${{ secrets.PRIVATE_EC2_HOST }} << 'EOF'
+              # 1️⃣ ECR 로그인 (매 배포 시 안전하게 실행)
+              aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+              | docker login --username AWS --password-stdin \
+                ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com || true
+
+            
               docker stop ${{ secrets.DOCKER_CONTAINERNAME }} || true
               docker rm ${{ secrets.DOCKER_CONTAINERNAME }} || true
       
@@ -75,7 +81,7 @@ jobs:
       
               docker run -d \
                 --name ${{ secrets.DOCKER_CONTAINERNAME }} \
-                --env-file /home/ec2-user/.env \
+                --env-file /home/ec2-user/opt/web-talk-chat-server/dev.env \
                 -p 7002:7002 \
                 --restart always \
                 ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
