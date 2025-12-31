@@ -43,3 +43,4 @@ src/main/resources/application.yaml
 ### 환경 변수 ###
 dev.env
 *.env
+*.sql
