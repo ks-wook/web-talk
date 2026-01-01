@@ -37,9 +37,6 @@ public class JwtFilter extends OncePerRequestFilter {
         
         String token = JWTProvider.resolveToken(request);
 
-        log.info("API 요청 경로 : {}", request.getRequestURI());
-        log.info("세팅된 쿠키값 : {}", (Object) request.getCookies());
-
         // 추출한 토큰이 유효한지 검증
         if (token != null && JWTProvider.validateToken(token)) {
             String userId = JWTProvider.getUserId(token);
