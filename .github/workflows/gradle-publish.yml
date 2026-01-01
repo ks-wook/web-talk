@@ -1,4 +1,4 @@
-name: Deploy Spring Boot to EC2 (with alb)
+name: Deploy Spring Boot to EC2
 
 on:
   push:
