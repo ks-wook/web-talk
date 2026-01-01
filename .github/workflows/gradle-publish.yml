@@ -59,7 +59,7 @@ jobs:
       # =========================
       # 5. ALB Target Group Rolling Deploy
       # =========================
-      - name: Rolling Deploy via ALB Target Group (Fail-fast)
+      - name: Rolling Deploy via ALB Target Group (Final)
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.BASTION_HOST }}
@@ -70,24 +70,33 @@ jobs:
       
             chmod 600 /home/ec2-user/web-talk-private-key.pem
       
-            for HOST in \
-              ${{ secrets.EC2_PRIVATE_IP_1 }} \
-              ${{ secrets.EC2_PRIVATE_IP_2 }}
-            do
-              echo "===== Rolling deploy start: $HOST ====="
+            # ===== Instance ID / IP 쌍을 명확히 분리 =====
+            INSTANCES=(
+              "${{ secrets.PRIVATE_EC2_ID_1 }}:${{ secrets.PRIVATE_EC2_IP_1 }}"
+              "${{ secrets.PRIVATE_EC2_ID_2 }}:${{ secrets.PRIVATE_EC2_IP_2 }}"
+            )
       
-              # 1️⃣ Target Group에서 제외 (실패 시 즉시 종료)
+            for ENTRY in "${INSTANCES[@]}"
+            do
+              INSTANCE_ID="${ENTRY%%:*}"
+              INSTANCE_IP="${ENTRY##*:}"
+      
+              echo "===== Rolling deploy start ====="
+              echo "Instance ID: $INSTANCE_ID"
+              echo "Instance IP: $INSTANCE_IP"
+      
+              # 1️⃣ Target Group에서 제외 (Instance ID 사용)
               aws elbv2 deregister-targets \
                 --target-group-arn ${{ secrets.TARGET_GROUP_ARN }} \
-                --targets Id=$HOST
+                --targets Id=$INSTANCE_ID
       
               echo "Waiting for connection draining..."
               sleep 40
       
-              # 2️⃣ EC2 배포 (여기서 실패하면 CI 실패)
+              # 2️⃣ Private EC2 배포 (IP로 SSH)
               ssh -i /home/ec2-user/web-talk-private-key.pem \
                 -o StrictHostKeyChecking=no \
-                ec2-user@$HOST "
+                ec2-user@$INSTANCE_IP "
                   set -euo pipefail
       
                   echo '[INFO] Login to ECR'
@@ -115,11 +124,11 @@ jobs:
                     ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
                 "
       
-              # 3️⃣ 헬스 체크 통과 대기 (통과 못 하면 CI 실패)
+              # 3️⃣ 헬스 체크 통과 대기
               echo "Waiting for health check..."
               until aws elbv2 describe-target-health \
                 --target-group-arn ${{ secrets.TARGET_GROUP_ARN }} \
-                --targets Id=$HOST \
+                --targets Id=$INSTANCE_ID \
                 | grep -q healthy
               do
                 sleep 10
@@ -128,7 +137,7 @@ jobs:
               # 4️⃣ Target Group 재등록
               aws elbv2 register-targets \
                 --target-group-arn ${{ secrets.TARGET_GROUP_ARN }} \
-                --targets Id=$HOST
+                --targets Id=$INSTANCE_ID
       
-              echo "===== Rolling deploy completed: $HOST ====="
+              echo "===== Rolling deploy completed: $INSTANCE_ID ====="
             done
