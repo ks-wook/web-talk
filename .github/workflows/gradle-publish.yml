@@ -1,4 +1,4 @@
-name: Deploy Spring Boot to EC2 (ECR)
+name: Deploy Spring Boot to EC2 (ECR + ALB Rolling)
 
 on:
   push:
@@ -9,10 +9,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # =========================
+      # 1. 소스 체크아웃
+      # =========================
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ aws ecr 로그인
+      # =========================
+      # 2. AWS 인증 설정
+      # =========================
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -23,17 +28,15 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-
-      # ✅ 도커 이미지 빌드
-      # QEMU 설정 (ARM 에뮬레이션)
+      # =========================
+      # 3. Docker ARM64 빌드
+      # =========================
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      
-      # Buildx 설정
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
-      # ARM 도커 이미지 빌드
+
       - name: Build Docker image (ARM64)
         run: |
           docker buildx build \
@@ -41,7 +44,9 @@ jobs:
             -t ${{ secrets.DOCKER_IMAGE_NAME }}:latest \
             --load .
 
-      # ✅ 새 이미지 push
+      # =========================
+      # 4. ECR Push
+      # =========================
       - name: Tag & Push Docker image to ECR
         run: |
           docker tag \
@@ -51,13 +56,9 @@ jobs:
           docker push \
             ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
 
-
-      # ✅ EC2 배포
-      # 1. Bastion Host를 통해 ec2 접속
-      # 2. 2대의 Ec2를 돌며 타겟그룹에서 인스턴스를 제외하며 배포작업 시작
-      # 2. 기존 컨테이너 & 도커 이미지 제거
-      # 3. 도커 이미지 pull
-      # 4. 도커 컨테이너 실행
+      # =========================
+      # 5. ALB Target Group Rolling Deploy
+      # =========================
       - name: Rolling Deploy via ALB Target Group
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -66,48 +67,46 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-      
+
             chmod 600 /home/ec2-user/web-talk-private-key.pem
-      
+
             for HOST in \
               ${{ secrets.PRIVATE_EC2_IP_1 }} \
               ${{ secrets.PRIVATE_EC2_IP_2 }}
             do
               echo "===== Rolling deploy start: $HOST ====="
-      
+
               # 1️⃣ Target Group에서 제외
               aws elbv2 deregister-targets \
                 --target-group-arn ${{ secrets.TARGET_GROUP_ARN }} \
                 --targets Id=$HOST
-      
+
               echo "Waiting for connection draining..."
               sleep 40
-      
+
               # 2️⃣ EC2 배포
               ssh -i /home/ec2-user/web-talk-private-key.pem \
                 -o StrictHostKeyChecking=no \
                 ec2-user@$HOST << 'EOF'
-                
-                aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
-                | docker login --username AWS --password-stdin \
-                  ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com || true
-                
-                docker stop ${{ secrets.DOCKER_CONTAINERNAME }} || true
-                docker rm ${{ secrets.DOCKER_CONTAINERNAME }} || true
-                
-                docker image prune -f
-                
-                docker pull \
-                  ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
-                
-                docker run -d \
-                  --name ${{ secrets.DOCKER_CONTAINERNAME }} \
-                  --env-file /home/ec2-user/opt/${{ secrets.DOCKER_IMAGE_NAME }}/dev.env \
-                  -p 7002:7002 \
-                  --restart always \
-                  ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
-                EOF
-      
+aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+| docker login --username AWS --password-stdin \
+  ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com || true
+
+docker stop ${{ secrets.DOCKER_CONTAINERNAME }} || true
+docker rm ${{ secrets.DOCKER_CONTAINERNAME }} || true
+docker image prune -f
+
+docker pull \
+  ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
+
+docker run -d \
+  --name ${{ secrets.DOCKER_CONTAINERNAME }} \
+  --env-file /home/ec2-user/opt/${{ secrets.DOCKER_IMAGE_NAME }}/dev.env \
+  -p 7002:7002 \
+  --restart always \
+  ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
+EOF
+
               # 3️⃣ 헬스 체크 대기
               echo "Waiting for health check..."
               until aws elbv2 describe-target-health \
@@ -117,13 +116,11 @@ jobs:
               do
                 sleep 10
               done
-      
+
               # 4️⃣ Target Group 재등록
               aws elbv2 register-targets \
                 --target-group-arn ${{ secrets.TARGET_GROUP_ARN }} \
                 --targets Id=$HOST
-      
+
               echo "===== Rolling deploy completed: $HOST ====="
             done
-
-
