@@ -118,7 +118,7 @@ jobs:
                   echo '[INFO] Run new container'
                   docker run -d \
                     --name ${{ secrets.DOCKER_CONTAINERNAME }} \
-                    --env-file /home/ec2-user/opt/${{ secrets.DOCKER_IMAGE_NAME }}/dev.env \
+                    --env-file /opt/${{ secrets.DOCKER_IMAGE_NAME }}/dev.env \
                     -p 7002:7002 \
                     --restart always \
                     ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
