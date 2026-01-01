@@ -63,7 +63,7 @@ jobs:
               # 1️⃣ Target Group에서 제외
               aws elbv2 deregister-targets \
                 --target-group-arn ${{ secrets.TARGET_GROUP_ARN }} \
-                --targets Id=$INSTANCE_ID
+                --targets Id=$INSTANCE_ID,Port=${{ secrets.DOCKER_CONTAINERPORT }}
       
               echo "Waiting for connection draining..."
               sleep 40
