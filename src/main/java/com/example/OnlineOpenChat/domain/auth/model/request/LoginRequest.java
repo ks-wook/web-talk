@@ -9,7 +9,7 @@ public record LoginRequest (
         @Schema(description = "유저 이름")
         @NotBlank
         @NotNull
-        String name,
+        String loginId,
 
         @Schema(description = "유저 비밀번호")
         @NotBlank

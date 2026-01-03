@@ -12,5 +12,8 @@ public record FriendDto(
         Long id,
 
         @Schema(description = "친구 닉네임")
-        String nickname
+        String nickname,
+
+        @Schema(description = "상태 메시지")
+        String statusText
 ) {}

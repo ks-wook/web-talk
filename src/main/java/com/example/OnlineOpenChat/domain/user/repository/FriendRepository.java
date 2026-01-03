@@ -19,7 +19,8 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     @Query("""
         select new com.example.OnlineOpenChat.domain.user.model.FriendDto(
             u.id,
-            u.nickname
+            u.nickname,
+            u.status_text
         )
         from Friend f
         join User u on f.friendId = u.id

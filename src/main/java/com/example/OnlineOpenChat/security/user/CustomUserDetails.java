@@ -1,7 +1,6 @@
 package com.example.OnlineOpenChat.security.user;
 
 import com.example.OnlineOpenChat.domain.repository.entity.User;
-import com.example.OnlineOpenChat.domain.repository.entity.UserCredentials;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -31,7 +30,7 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public String getUsername() {
-        return this.user.getName();
+        return this.user.getLoginId();
     }
 
 }

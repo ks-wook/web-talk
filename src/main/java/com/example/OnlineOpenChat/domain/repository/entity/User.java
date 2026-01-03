@@ -21,11 +21,23 @@ public class User {
     @Column(name = "t_id")
     private Long id;
 
-    @Column(nullable = false)
-    private String name;
+    /**
+     * 로그인 아이디
+     */
+    @Column(name = "login_id", nullable = false)
+    private String loginId;
 
+    /**
+     * UI에 표시될 유저 닉네임
+     */
     @Column(nullable = false)
     private String nickname;
+
+    /**
+     * 유저 상태 메시지
+     */
+    @Column(name="status_text", nullable = false)
+    private String statusText;
 
     @Column
     private Timestamp created_at;

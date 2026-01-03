@@ -41,21 +41,21 @@ public class AuthService {
      */
     @Transactional
     public CreateUserResponse createUser(CreateUserRequest request) {
-        log.info("유저 회원가입 요청: UserId {}", request.name());
+        log.info("유저 회원가입 요청: UserId {}", request.loginId());
 
         try {
-            Optional<User> user = userRepository.findByName(request.name());
+            Optional<User> user = userRepository.findByLoginId(request.loginId());
 
             // 1) 이미 등록된 유저 닉네임인지 검사
             if(user.isPresent()) {
-                log.error("USER_ALREADY_EXISTS: {}", request.name());
+                log.error("USER_ALREADY_EXISTS: {}", request.loginId());
                 throw new CustomException(ErrorCode.USER_ALREADY_EXISTS);
             }
 
             // 2) 유저 정보 등록
             // 유저의 기본 닉네임은 "UserName" + #{랜덤숫자4자리} 형태로 지정
             String defaultNickname = "UserName" + (int)(Math.random() * 9000) + 1000;
-            User newUser = this.newUser(request.name(), defaultNickname);
+            User newUser = this.newUser(request.loginId(), defaultNickname);
 
             UserCredentials newCredentials = this.newUserCredentials(request.password(), newUser);
             newUser.setCredentials(newCredentials);
@@ -63,8 +63,8 @@ public class AuthService {
             userRepository.save(newUser);
 
             // 3) 회원가입 성공
-            log.info("회원가입 성공 UserId : {}", newUser.getName());
-            return new CreateUserResponse(ErrorCode.SUCCESS, (request.name()));
+            log.info("회원가입 성공 UserId : {}", newUser.getLoginId());
+            return new CreateUserResponse(ErrorCode.SUCCESS, (request.loginId()));
         }
         catch (CustomException e) {
             log.error("회원가입 실패: {}", e.getMessage());
@@ -81,14 +81,14 @@ public class AuthService {
      * @return
      */
     public LoginResponse login(LoginRequest request, HttpServletResponse response) {
-        log.info("유저 로그인 요청: UserId {}", request.name());
+        log.info("유저 로그인 요청: UserId {}", request.loginId());
 
         try {
-            Optional<User> user = userRepository.findByName((request.name()));
+            Optional<User> user = userRepository.findByLoginId((request.loginId()));
 
             // 유저정보 없는경우
             if(user.isEmpty()) {
-                log.error("NOT_EXIST_USER: {}", request.name());
+                log.error("NOT_EXIST_USER: {}", request.loginId());
                 throw new CustomException(ErrorCode.NOT_EXIST_USER);
             }
 
@@ -178,7 +178,7 @@ public class AuthService {
      */
     private User newUser(String name, String defaultNickname) {
         return User.builder()
-                .name(name)
+                .loginId(name)
                 .nickname(defaultNickname)
                 .created_at(new Timestamp(System.currentTimeMillis()))
                 .build();
