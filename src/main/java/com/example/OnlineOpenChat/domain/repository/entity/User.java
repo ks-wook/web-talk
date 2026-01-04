@@ -52,4 +52,8 @@ public class User {
     public void updateStatusText(String statusText) {
         this.statusText = statusText;
     }
+
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
+    }
 }

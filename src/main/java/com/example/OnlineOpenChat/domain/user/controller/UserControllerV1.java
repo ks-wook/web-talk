@@ -1,11 +1,9 @@
 package com.example.OnlineOpenChat.domain.user.controller;
 
 import com.example.OnlineOpenChat.domain.user.model.request.AddFriendRequest;
+import com.example.OnlineOpenChat.domain.user.model.request.UpdateNicknameRequest;
 import com.example.OnlineOpenChat.domain.user.model.request.UpdateStatusTextRequest;
-import com.example.OnlineOpenChat.domain.user.model.response.AddFriendResponse;
-import com.example.OnlineOpenChat.domain.user.model.response.GetFriendListResponse;
-import com.example.OnlineOpenChat.domain.user.model.response.UpdateStatusTextResponse;
-import com.example.OnlineOpenChat.domain.user.model.response.UserSearchResponse;
+import com.example.OnlineOpenChat.domain.user.model.response.*;
 import com.example.OnlineOpenChat.domain.user.service.UserServiceV1;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -66,5 +64,17 @@ public class UserControllerV1 {
             @RequestBody UpdateStatusTextRequest request
             ) {
         return userServiceV1.updateStatusText(authString, request);
+    }
+
+    @Operation(
+            summary = "유저 닉네임 변경 요청",
+            description = "유저의 닉네임을 변경합니다."
+    )
+    @PostMapping("/update-nickname")
+    public UpdateNicknameResponse updateNickname(
+            @RequestHeader("Authorization") String authString,
+            @RequestBody UpdateNicknameRequest request
+    ) {
+        return userServiceV1.updateNickname(authString, request);
     }
 }

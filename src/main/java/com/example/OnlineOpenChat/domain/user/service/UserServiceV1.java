@@ -7,11 +7,9 @@ import com.example.OnlineOpenChat.domain.repository.entity.User;
 import com.example.OnlineOpenChat.domain.user.model.Friend;
 import com.example.OnlineOpenChat.domain.user.model.FriendDto;
 import com.example.OnlineOpenChat.domain.user.model.request.AddFriendRequest;
+import com.example.OnlineOpenChat.domain.user.model.request.UpdateNicknameRequest;
 import com.example.OnlineOpenChat.domain.user.model.request.UpdateStatusTextRequest;
-import com.example.OnlineOpenChat.domain.user.model.response.AddFriendResponse;
-import com.example.OnlineOpenChat.domain.user.model.response.GetFriendListResponse;
-import com.example.OnlineOpenChat.domain.user.model.response.UpdateStatusTextResponse;
-import com.example.OnlineOpenChat.domain.user.model.response.UserSearchResponse;
+import com.example.OnlineOpenChat.domain.user.model.response.*;
 import com.example.OnlineOpenChat.domain.user.repository.FriendRepository;
 import com.example.OnlineOpenChat.security.auth.JWTProvider;
 import lombok.AllArgsConstructor;
@@ -134,6 +132,33 @@ public class UserServiceV1 {
             return new UpdateStatusTextResponse(e.getErrorCode(), null);
         } catch (Exception e) {
             return new UpdateStatusTextResponse(ErrorCode.INTERNAL_SERVER_ERROR, null);
+        }
+    }
+
+    @Transactional
+    public UpdateNicknameResponse updateNickname(String authString, UpdateNicknameRequest reqeust) {
+        try {
+            Long userId = JWTProvider.getUserIdAsLong(authString);
+
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() ->
+                            new CustomException(ErrorCode.NOT_EXIST_USER, "존재하지 않는 유저입니다.")
+                    );
+
+            // 유저 구분을 위한 해시코드 붙이기
+            String nickname = reqeust.newNickname() + "#" + String.format("%04d", (int)(Math.random() * 10000));
+
+            // 닉네임 변경
+            user.updateNickname(nickname);
+
+            return new UpdateNicknameResponse(ErrorCode.SUCCESS, nickname);
+
+        } catch (CustomException e) {
+            log.error("닉네임 변경 중 오류 발생: {}", e.getMessage());
+            return new UpdateNicknameResponse(e.getErrorCode(), null);
+        } catch (Exception e) {
+            log.error("닉네임 변경 중 알 수 없는 오류 발생: {}", e.getMessage());
+            return new UpdateNicknameResponse(ErrorCode.INTERNAL_SERVER_ERROR, null);
         }
     }
 }
