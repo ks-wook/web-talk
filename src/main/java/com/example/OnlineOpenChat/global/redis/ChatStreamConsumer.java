@@ -47,9 +47,6 @@ public class ChatStreamConsumer {
      */
     @PostConstruct
     public void createGroup() {
-//        String key = "chat:room:1:stream";
-//        String group = "chat-group";
-
         try {
             // Consumer Group 생성
             redisTemplate.opsForStream().createGroup(

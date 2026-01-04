@@ -38,6 +38,10 @@ public class RedisMessage {
      */
     private String senderName;
 
+    /**
+     * 메시지를 보낸 유저 ID
+     */
+    private Long userId;
 
     /**
      * 메시지를 받을 대상 유저 ID 배열 -> 초대 알림 전송 시에만 데이터가 포함됨

@@ -42,16 +42,6 @@ public class WssControllerV1 {
             RedisMessage msg)
     {
         log.info("Message Received -> roomId: {}, from: {}, msg: {}", roomId, msg.getSenderName(), msg.getMessage());
-        
-        // TODO : 메시지 Redis에 임시 저장
-        // TODO : 클라에서 받는 메시지 타입을 Chat메시지 형태로 변환해야함
-        // TEST =================================================
-       /* ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setMessage("test");
-        chatMessage.setTimestamp(System.currentTimeMillis());
-        chatMessage.setRoomId(1L);
-        chatMessage.setUserId(1L);*/
-        // TEST =================================================
 
         // 2) Redis Stream으로 실시간 채팅 로그 기록
         ChatMessage chatMessage = ChatMessage.builder()
@@ -59,6 +49,7 @@ public class WssControllerV1 {
                 .senderName(msg.getSenderName())
                 .message(msg.getMessage())
                 .sentAt(System.currentTimeMillis())
+                .userId(msg.getUserId())
                 .build();
 
         chatStreamRepository.addToStream(chatMessage);
