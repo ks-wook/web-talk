@@ -1,6 +1,5 @@
 package com.example.OnlineOpenChat.domain.chat.service;
 
-
 import com.example.OnlineOpenChat.common.Constants.RedisMessageType;
 import com.example.OnlineOpenChat.common.exception.CustomException;
 import com.example.OnlineOpenChat.common.exception.ErrorCode;
@@ -12,7 +11,6 @@ import com.example.OnlineOpenChat.domain.chat.model.response.ChatListResponse;
 import com.example.OnlineOpenChat.domain.chat.model.response.CreateRoomResponse;
 import com.example.OnlineOpenChat.domain.chat.model.response.JoinedRoomListResponse;
 import com.example.OnlineOpenChat.domain.chat.mongo.document.ChatMessage;
-import com.example.OnlineOpenChat.domain.chat.mongo.repository.ChatMessageRepository;
 import com.example.OnlineOpenChat.domain.chat.mongo.service.ChatMessageService;
 import com.example.OnlineOpenChat.domain.repository.RoomMemberRepository;
 import com.example.OnlineOpenChat.domain.repository.RoomRepository;
@@ -53,17 +51,12 @@ public class ChatServiceV1 {
         try {
             // 1) 새로운 방 생성
             Room room = new Room(request.roomName());
-
             Room savedRoom = roomRepository.save(room);
 
-            // 2) 방 멤버로 초대된 유저들 추가
-            List<Long> inviteeIds = new ArrayList<>();
-
-            for (String inviteeName : request.participants()) {
-                User invitee = userRepository.findByNickname(inviteeName)
+            for (Long inviteeId : request.participantIds()) {
+                User invitee = userRepository.findById(inviteeId)
                         .orElseThrow(() -> new CustomException(ErrorCode.NOT_EXIST_USER));
 
-                inviteeIds.add(invitee.getId());
                 RoomMember inviteeMember = userToRoomMember(invitee, savedRoom.getId());
                 roomMemberRepository.save(inviteeMember);
             }
@@ -71,7 +64,7 @@ public class ChatServiceV1 {
             // 3) 방 멤버로 초대된 유저들에게 채팅방 구독 요청 알림 발송
             RedisMessage notification = RedisMessage.builder()
                     .type(RedisMessageType.INVITE)
-                    .targetUserIds(inviteeIds)
+                    .targetUserIds(request.participantIds())
                     .roomId(savedRoom.getId())
                     .roomName(request.roomName())
                     .build();

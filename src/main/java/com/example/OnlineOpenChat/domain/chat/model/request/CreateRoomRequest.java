@@ -12,6 +12,6 @@ public record CreateRoomRequest (
         @Schema(description = "채팅방 이름")
         String roomName,
 
-        @Schema(description = "채팅방 참여 유저 닉네임 리스트")
-        List<String> participants
+        @Schema(description = "채팅방 참여 유저 ID 리스트")
+        List<Long> participantIds
 ) { }
