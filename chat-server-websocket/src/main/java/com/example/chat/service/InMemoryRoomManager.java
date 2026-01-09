@@ -1,5 +1,6 @@
 package com.example.chat.service;
 
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -9,6 +10,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 @Component
 public class InMemoryRoomManager implements RoomManager {
@@ -94,7 +96,7 @@ public class InMemoryRoomManager implements RoomManager {
      * @param session
      */
     @Override
-    public void removeSession(WebSocketSession session) {
+    public void removeSession(WebSocketSession session, Consumer<Long> onRoomEmpty) {
         Set<Long> rooms = sessionRooms.remove(session);
         if (rooms == null) {
             return;
@@ -105,8 +107,10 @@ public class InMemoryRoomManager implements RoomManager {
             if (sessions != null) {
                 sessions.remove(session);
 
+                // 방이 비어있는 경우 방 정보도 제거
                 if (sessions.isEmpty()) {
                     roomSessions.remove(roomId);
+                    onRoomEmpty.accept(roomId);
                 }
             }
         }
@@ -117,5 +121,10 @@ public class InMemoryRoomManager implements RoomManager {
     @Override
     public Set<WebSocketSession> getSessions(Long roomId) {
         return roomSessions.getOrDefault(roomId, Collections.emptySet());
+    }
+
+    @Override
+    public ConcurrentMap<Long, Set<WebSocketSession>> getAllRoomSessions() {
+        return roomSessions;
     }
 }

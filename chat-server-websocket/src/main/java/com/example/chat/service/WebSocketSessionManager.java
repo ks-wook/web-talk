@@ -1,8 +1,8 @@
 package com.example.chat.service;
 
+import com.example.chat.WebSocketTextMessageType;
 import com.example.chat.dto.WebSocketTextMessage;
 import com.example.chat.redis.RedisMessageBroker;
-import com.example.chat.dto.ChatMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -12,9 +12,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 @Service
 public class WebSocketSessionManager {
@@ -32,7 +34,13 @@ public class WebSocketSessionManager {
      * 왜 value가 Set인가?
      * -> 하나의 유저가 여러 디바이스(브라우저 탭 등)에서 접속할 수 있기 때문
      */
-    private final ConcurrentMap<Long, Set<WebSocketSession>> userSession = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Set<WebSocketSession>> userSessions = new ConcurrentHashMap<>();
+
+
+    /**
+     * 메시지 타입별 핸들러
+     */
+    private final ConcurrentMap<WebSocketTextMessageType, Consumer<WebSocketTextMessage>> messageHandlers = new ConcurrentHashMap<>();
 
     private static final String SERVER_ROOMS_KEY_PREFIX = "chat:server:rooms";
 
@@ -50,7 +58,11 @@ public class WebSocketSessionManager {
 
     @PostConstruct
     public void initialize() {
-        redisMessageBroker.setLocalMessageHandler(this::sendMessageToLocalRoom);
+        redisMessageBroker.setLocalMessageHandler(this::handleMessage);
+        
+        // 메시지 타입별 핸들러 등록
+        messageHandlers.put(WebSocketTextMessageType.NEW_MESSAGE, this::newMessageHandler);
+        messageHandlers.put(WebSocketTextMessageType.INVITE, this::inviteMessageHandler);
     }
 
     /**
@@ -63,7 +75,7 @@ public class WebSocketSessionManager {
 
         // userId에 해당하는 세션 Set이 없으면 새로 생성 후 추가
         // userId에 해당하는 세션 Set이 이미 있으면 해당 Set에 세션 추가
-        userSession
+        userSessions
                 .computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet())
                 .add(session);
     }
@@ -74,45 +86,16 @@ public class WebSocketSessionManager {
      * @param session
      */
     public void removeSession(Long userId, WebSocketSession session) {
-        Set<WebSocketSession> sessions = userSession.get(userId);
+        Set<WebSocketSession> sessions = userSessions.get(userId);
         if (sessions != null) {
             sessions.remove(session);
 
-
             if (sessions.isEmpty()) {
-                userSession.remove(userId);
+                userSessions.remove(userId);
+                logger.info("[WebSocketSessionManager] Removed all sessions for user {}", userId);
 
-                /*
-                int totalConnectedUsers = userSession.values().stream()
-                        .mapToInt(s -> (int) s.stream().filter(WebSocketSession::isOpen).count())
-                        .sum();
-
-
-                if (totalConnectedUsers == 0) {
-                    String serverId = redisMessageBroker.getServerId();
-                    String serverRoomKey = SERVER_ROOMS_KEY_PREFIX + serverId;
-
-                    Set<String> subscribedRooms =
-                            redisTemplate.opsForSet().members(serverRoomKey);
-
-                    if (subscribedRooms == null) {
-                        subscribedRooms = Collections.emptySet();
-                    }
-
-                    for (String roomIdStr : subscribedRooms) {
-                        try {
-                            Long roomId = Long.parseLong(roomIdStr);
-                            redisMessageBroker.unsubscribeFromRoom(roomId);
-                        } catch (NumberFormatException ignored) {
-                        }
-                    }
-
-                    redisTemplate.delete(serverRoomKey);
-                    logger.info("Removed {} {}", totalConnectedUsers, subscribedRooms);
-                }
-
-                 */
-
+                // RoomManager에서도 해당 유저의 세션 정보를 모두 제거
+                roomManager.removeSession(session, this::onRoomEmpty);
             }
         }
     }
@@ -122,7 +105,7 @@ public class WebSocketSessionManager {
      * @param userId
      * @param roomId
      */
-    public void joinRoom(Long userId, Long roomId) {
+    public void joinRoom(Long userId, Long roomId, WebSocketSession session) {
         String serverId = redisMessageBroker.getServerId();
         String serverRoomKey = SERVER_ROOMS_KEY_PREFIX + serverId;
 
@@ -137,6 +120,9 @@ public class WebSocketSessionManager {
 
         redisTemplate.opsForSet().add(serverRoomKey, roomId.toString());
 
+        // RoomManager에 유저 세션 추가
+        roomManager.joinRoom(roomId, userId, session);
+
         logger.info(
                 "Joined {} for {} {} to server {}",
                 roomId,
@@ -147,27 +133,60 @@ public class WebSocketSessionManager {
     }
 
     /**
-     * 특정 채팅방에 속한 유저들에게 메시지 전파
+     * 해당 채팅 서버 인스턴스가 특정 채팅방 구독 해제 처리
+     * @param roomId
+     */
+    public void onRoomEmpty(Long roomId) {
+        String serverId = redisMessageBroker.getServerId();
+        String serverRoomKey = SERVER_ROOMS_KEY_PREFIX + serverId;
+
+        // Redis Set에서 해당 방 ID 제거
+        redisTemplate.opsForSet().remove(serverRoomKey, roomId.toString());
+
+        // 메시지 브로커 구독 해제
+        redisMessageBroker.unsubscribeFromRoom(roomId);
+
+        logger.info(
+                "Left {} from server {}",
+                roomId,
+                serverRoomKey
+        );
+    }
+
+    /**
+     * 메시지 브로커로부터 받은 메시지를 처리하는 로직
      * @param roomId
      * @param message
      */
-    public void sendMessageToLocalRoom(
+    public void handleMessage(
             Long roomId,
             WebSocketTextMessage message
     ) {
+        Objects.requireNonNull(
+                messageHandlers.get(message.getType()),
+                () -> "핸들러가 등록되지 않은 메시지 타입입니다. " + message
+        ).accept(message);
+    }
+
+
+    /**
+     * 채팅방 메시지에 대한 처리
+     * @param message
+     */
+    public void newMessageHandler(
+            WebSocketTextMessage message
+    ) {
         try {
+
             String json = objectMapper.writeValueAsString(message);
-            
-            // roomId에 속한 유저들에게 메시지 전달
-            for(WebSocketSession s : roomManager.getSessions(roomId)) {
+
+            for(WebSocketSession s : roomManager.getSessions(message.getRoomId())) {
                 // 열려있는 세션 대상으로 메시지 전송
                 if (s.isOpen()) {
                     try {
-                        // 메시지 전송
-
                         // TODO : sendMessage 자체는 단순히 동기적 동작이므로 별도의 메시지 큐를 만들고 쓰레드풀을 할당하여 비동기적으로 처리할 필요가 있어보임
                         s.sendMessage(new TextMessage(json));
-                        logger.info("Sending message to local room {}", roomId);
+                        logger.info("Sending message to local room {}", message.getRoomId());
 
                     } catch (Exception e) {
                         logger.error(e.getMessage(), e);
@@ -175,34 +194,49 @@ public class WebSocketSessionManager {
                 }
             }
 
-            /*
-            userSession.forEach((userId, sessions) -> {
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
+    }
 
-                Set<WebSocketSession> closedSessions = new HashSet<>();
+    /**
+     * 초대 알림에 대한 처리
+     * @param message
+     */
+    public void inviteMessageHandler(
+            WebSocketTextMessage message
+    ) {
+        try {
 
-                for (WebSocketSession s : sessions) {
-                    if (s.isOpen()) {
-                        try {
-                            // 메시지 전송
+            for(Long targetUserId : message.getTargetUserIds()) {
+                Set<WebSocketSession> sessions = userSessions.get(targetUserId);
+                if (sessions != null && !sessions.isEmpty()) {
 
-                            s.sendMessage(new TextMessage(json));
-                            logger.info("Sending message to local room {}", roomId);
+                    for(WebSocketSession s : sessions) {
+                        // 열려있는 세션 대상으로 채팅방 초대 메시지 전송
+                        if (s.isOpen()) {
 
-                        } catch (Exception e) {
-                            logger.error(e.getMessage(), e);
-                            closedSessions.add(s);
+                            try {
+                                // 1( roomManager에 유저 세션 추가
+                                // roomManager.joinRoom(targetUserId, message.getRoomId(), s);
+                                this.joinRoom(targetUserId, message.getRoomId(), s);
+                                logger.info("User {} joined room {} due to invite", targetUserId, message.getRoomId());
+                                
+                                String json = objectMapper.writeValueAsString(message);
+
+                                // 2) 초대 메시지 발송
+                                // TODO : sendMessage 자체는 단순히 동기적 동작이므로 별도의 메시지 큐를 만들고 쓰레드풀을 할당하여 비동기적으로 처리할 필요가 있어보임
+                                s.sendMessage(new TextMessage(json));
+                                logger.info("Sending invite message to user {} for room {}", targetUserId, message.getRoomId());
+
+                            } catch (Exception e) {
+                                logger.error(e.getMessage(), e);
+                            }
                         }
-                    } else {
-                        closedSessions.add(s);
                     }
-                }
 
-                if (!closedSessions.isEmpty()) {
-                    sessions.removeAll(closedSessions);
                 }
-            });
-
-             */
+            }
 
         } catch (Exception e) {
             logger.error(e.getMessage(), e);

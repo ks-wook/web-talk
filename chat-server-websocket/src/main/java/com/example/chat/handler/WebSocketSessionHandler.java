@@ -1,11 +1,9 @@
 package com.example.chat.handler;
 
-import com.example.chat.dto.RoomDto;
 import com.example.chat.dto.WebSocketTextMessage;
 import com.example.chat.service.ChatMessageService;
 import com.example.chat.WebSocketTextMessageType;
 import com.example.chat.service.ChatService;
-import com.example.chat.service.RoomManager;
 import com.example.chat.service.WebSocketSessionManager;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +16,6 @@ import org.springframework.web.socket.*;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -29,7 +26,6 @@ public class WebSocketSessionHandler implements WebSocketHandler {
             LoggerFactory.getLogger(WebSocketSessionHandler.class);
 
     private final WebSocketSessionManager sessionManager;
-    private final RoomManager roomManager;
     private final ChatMessageService chatMessageService;
     private final ChatService chatService;
     private final ObjectMapper objectMapper;
@@ -106,8 +102,7 @@ public class WebSocketSessionHandler implements WebSocketHandler {
 
         if (userId != null) {
             // roomManager과 sessionManager에서 세션 제거
-            roomManager.removeSession(session);
-            sessionManager.removeSession(userId, session);
+            onDisconnected(session, userId);
         }
     }
 
@@ -119,8 +114,7 @@ public class WebSocketSessionHandler implements WebSocketHandler {
         Long userId = getUserIdFromSession(session);
         if (userId != null) {
             // roomManager과 sessionManager에서 세션 제거
-            roomManager.removeSession(session);
-            sessionManager.removeSession(userId, session);
+            onDisconnected(session, userId);
 
             logger.info("Session Disconnected for {}", userId);
         }
@@ -138,6 +132,17 @@ public class WebSocketSessionHandler implements WebSocketHandler {
     }
 
     /**
+     * 세션 연결 종료시 처리
+     * @param session
+     * @param userId
+     */
+    private void onDisconnected(WebSocketSession session, Long userId) {
+        // roomManager과 sessionManager에서 세션 제거
+        sessionManager.removeSession(userId, session);
+        logger.info("Session Disconnected for {}", userId);
+    }
+
+    /**
      * 유저가 속해있던 채팅방 목록 세팅
      * @param userId
      */
@@ -147,9 +152,10 @@ public class WebSocketSessionHandler implements WebSocketHandler {
             var chatRooms = chatService.findRoomsByUserId(userId);
 
             for (var chatRoom : chatRooms) {
-                sessionManager.joinRoom(userId, chatRoom.id());
+                sessionManager.joinRoom(userId, chatRoom.id(), session);
             }
 
+            /*
             // RoomManager에 유저가 속한 채팅방 목록 세팅
             roomManager.joinRooms(
                     chatRooms.stream()
@@ -158,6 +164,7 @@ public class WebSocketSessionHandler implements WebSocketHandler {
                     userId,
                     session
             );
+            */
 
             logger.info(
                     "Loaded {} chat rooms for user: {}",
@@ -230,45 +237,6 @@ public class WebSocketSessionHandler implements WebSocketHandler {
             
             // redisMessageBroker에게 메시지 전달
             chatMessageService.sendMessage(session, userId, webSocketChatMessage);
-
-
-            /*
-            if ("SEND_MESSAGE".equals(messageType)) {
-                JsonNode jsonNode = objectMapper.readTree(payload);
-
-                JsonNode roomIdNode = jsonNode.get("chatRoomId");
-                if (roomIdNode == null) {
-                    throw new IllegalArgumentException("chatRoomId is required");
-                }
-
-                JsonNode messageTypeNode = jsonNode.get("messageType");
-                if (messageTypeNode == null) {
-                    throw new IllegalArgumentException("messageType is required");
-                }
-
-                Long chatRoomId = roomIdNode.asLong();
-                String messageTypeText = messageTypeNode.asText();
-                String content = jsonNode.get("content") != null
-                        ? jsonNode.get("content").asText()
-                        : null;
-
-                SendMessageRequest request = new SendMessageRequest(
-                        chatRoomId,
-                        MessageType.valueOf(messageTypeText),
-                        content
-                );
-
-                chatMessageService.sendMessage(request, userId);
-
-            } else {
-                logger.warn("Unknown message type: {}", messageType);
-                sendErrorMessage(
-                        session,
-                        "알 수 없는 메시지 타입입니다: " + messageType,
-                        "UNKNOWN_MESSAGE_TYPE"
-                );
-            }
-             */
 
         } catch (Exception e) {
             logger.error(
