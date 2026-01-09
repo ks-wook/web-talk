@@ -1,9 +1,6 @@
 package com.example.chat.config;
 
-import com.example.chat.redis.subscriber.ChatRedisSubscriber;
-import com.example.chat.redis.subscriber.NotificationRedisSubscriber;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +22,7 @@ public class RedisConfig {
 
     @Value("${spring.data.redis.host}")
     private String redisHost;
+
     @Value("${spring.data.redis.port}")
     private int redisPort;
 
@@ -68,18 +66,10 @@ public class RedisConfig {
      */
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(
-            RedisConnectionFactory factory,
-            ChatRedisSubscriber chatSubscriber,
-            NotificationRedisSubscriber notificationSubscriber,
-            @Qualifier("chatMessageTopic") ChannelTopic chatMessageTopic,
-            @Qualifier("notificationTopic") ChannelTopic chatNotificationTopic
+            RedisConnectionFactory factory
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(factory);
-
-        // 각 토픽에 맞는 리스너(구독자) 등록
-        container.addMessageListener(chatSubscriber, chatMessageTopic);
-        container.addMessageListener(notificationSubscriber, chatNotificationTopic);
 
         // 비즈니스 로직 처리를 위한 쓰레드풀 지정
         container.setTaskExecutor(
@@ -99,13 +89,12 @@ public class RedisConfig {
         return container;
     }
 
-    @Bean("chatMessageTopic")
-    public ChannelTopic chatMessageTopic() {
-        return new ChannelTopic("chat-message");
-    }
-
+    /**
+     * 알림 메시지용 토픽
+     * @return
+     */
     @Bean("notificationTopic")
     public ChannelTopic notificationTopic() {
-        return new ChannelTopic("chat-notification");
+        return new ChannelTopic("notification");
     }
 }

@@ -3,5 +3,7 @@ include(
         "chat-server-application",
         "chat-server-persistence",
         "chat-server-domain",
-        "chat-server-websocket"
+        "chat-server-websocket",
+        "chat-server-api",
+        "chat-server-security"
 )

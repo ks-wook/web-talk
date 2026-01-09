@@ -2,12 +2,15 @@ package com.example.chat.redis;
 
 import com.example.chat.dto.WebSocketTextMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -30,6 +33,7 @@ public class RedisMessageBroker implements MessageListener {
     private final RedisTemplate<String, String> redisTemplate;
     private final RedisMessageListenerContainer messageListenerContainer;
     private final ObjectMapper objectMapper;
+    private final ChannelTopic notificationTopic;
 
     /**
      * 서버 고유 ID값
@@ -54,11 +58,13 @@ public class RedisMessageBroker implements MessageListener {
     public RedisMessageBroker(
             RedisTemplate<String, String> redisTemplate,
             RedisMessageListenerContainer messageListenerContainer,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            @Qualifier ("notificationTopic") ChannelTopic notificationTopic
     ) {
         this.redisTemplate = redisTemplate;
         this.messageListenerContainer = messageListenerContainer;
         this.objectMapper = objectMapper;
+        this.notificationTopic = notificationTopic;
     }
 
     @PreDestroy
@@ -70,7 +76,16 @@ public class RedisMessageBroker implements MessageListener {
         for (Long roomId : subscribeRooms) {
             unsubscribeFromRoom(roomId);
         }
-        logger.info("Removing RedisMessageListenerContainer");
+        logger.info("[RedisMessageBroker] Removing RedisMessageListenerContainer");
+    }
+
+    /**
+     * 알림 채널 구독
+     */
+    @PostConstruct
+    public void subscribeToNotificationChannel() {
+        messageListenerContainer.addMessageListener(this, notificationTopic);
+        logger.info("[RedisMessageBroker] Subscribed to notification channel");
     }
 
     /**
@@ -82,7 +97,7 @@ public class RedisMessageBroker implements MessageListener {
             messageListenerContainer.addMessageListener(this, topic);
             logger.info("Subscribed to {}", roomId);
         } else {
-            logger.error("Room {} does not exist", roomId);
+            logger.error("[RedisMessageBroker] Room {} does not exist", roomId);
         }
     }
 
@@ -90,14 +105,12 @@ public class RedisMessageBroker implements MessageListener {
      * 특정 방 구독 해제
      */
     public void unsubscribeFromRoom(Long roomId) {
-        // TODO : 별도 쓰레드 할당하여 일정 시간마다 유저수가 0명인 방에 대해 구독해지처리
-
         if (subscribeRooms.remove(roomId)) {
             ChannelTopic topic = new ChannelTopic("chat.room." + roomId);
             messageListenerContainer.removeMessageListener(this, topic);
             logger.info("Unsubscribed from {}", roomId);
         } else {
-            logger.error("Room {} does not exist", roomId);
+            logger.error("[RedisMessageBroker] Room {} does not exist", roomId);
         }
     }
 
@@ -108,25 +121,13 @@ public class RedisMessageBroker implements MessageListener {
 
         // 특정 방 채널토픽으로 publish
         try {
-            /*
-            DistributedMessage distributedMessage =
-                    new DistributedMessage(
-                            serverId + "-" + System.currentTimeMillis() + "-" + System.nanoTime(),
-                            serverId,
-                            roomId,
-                            LocalDateTime.now(),
-                            payload
-                    );
-
-             */
-
             String json = objectMapper.writeValueAsString(payload);
             redisTemplate.convertAndSend("chat.room." + roomId, json);
 
-            logger.info("Broadcast to {} : {}", roomId, json);
+            logger.info("[RedisMessageBroker] Broadcast to {} : {}", roomId, json);
 
         } catch (Exception e) {
-            logger.error("Error broadcast to {}", roomId, e);
+            logger.error("[RedisMessageBroker] Error broadcast to {}", roomId, e);
         }
     }
 
@@ -139,19 +140,16 @@ public class RedisMessageBroker implements MessageListener {
     public void onMessage(Message message, byte[] pattern) {
         try {
             String json = new String(message.getBody(), StandardCharsets.UTF_8);
-            //DistributedMessage distributedMessage =
-                    //objectMapper.readValue(json, DistributedMessage.class);
-
             WebSocketTextMessage webSocketTextMessage = objectMapper.readValue(json, WebSocketTextMessage.class);
-            BiConsumer<Long, WebSocketTextMessage> handler = localMessageHandler;
-            if (handler != null) {
-                handler.accept(
+
+            if (localMessageHandler != null) {
+                localMessageHandler.accept(
                         webSocketTextMessage.getRoomId(),
                         webSocketTextMessage
                 );
             }
             else {
-                log.error("메시지 핸들러가 설정되지 않았습니다.");
+                log.error("[RedisMessageBroker] Invalid message Type: message -> {}", webSocketTextMessage);
             }
 
         } catch (Exception e) {
@@ -160,54 +158,17 @@ public class RedisMessageBroker implements MessageListener {
     }
 
     /**
-     * redis pub/sub 분산 메시지 포맷
+     * 메시지 브로커(Redis)로 알림 메시지 전송
+     * @param payload
      */
-    /*
-    public static class DistributedMessage {
+    public void broadcastNotification (WebSocketTextMessage payload) {
 
-        private String id;
-        private String serverId;
-        private Long roomId;
-        private LocalDateTime timestamp;
-        private ChatMessage payload;
+        try {
+            String json = objectMapper.writeValueAsString(payload);
+            redisTemplate.convertAndSend(notificationTopic.getTopic(), json);
 
-        public DistributedMessage() {
-        }
-
-        public DistributedMessage(
-                String id,
-                String serverId,
-                Long roomId,
-                LocalDateTime timestamp,
-                ChatMessage payload
-        ) {
-            this.id = id;
-            this.serverId = serverId;
-            this.roomId = roomId;
-            this.timestamp = timestamp;
-            this.payload = payload;
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        public String getServerId() {
-            return serverId;
-        }
-
-        public Long getRoomId() {
-            return roomId;
-        }
-
-        public LocalDateTime getTimestamp() {
-            return timestamp;
-        }
-
-        public ChatMessage getPayload() {
-            return payload;
+        } catch (Exception e) {
+            logger.error("Error broadcast notification", e);
         }
     }
-
-     */
 }
