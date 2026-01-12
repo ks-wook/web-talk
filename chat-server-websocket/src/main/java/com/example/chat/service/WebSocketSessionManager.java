@@ -28,6 +28,7 @@ public class WebSocketSessionManager {
     private final ObjectMapper objectMapper;
     private final RedisMessageBroker redisMessageBroker;
     private final RoomManager roomManager;
+    private final WebSocketSendQueue webSocketSendQueue;
 
     /**
      * userId -> WebSocketSession Set
@@ -48,12 +49,14 @@ public class WebSocketSessionManager {
             RedisTemplate<String, String> redisTemplate,
             ObjectMapper objectMapper,
             RedisMessageBroker redisMessageBroker,
-            RoomManager roomManager
+            RoomManager roomManager,
+            WebSocketSendQueue webSocketSendQueue
     ) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.redisMessageBroker = redisMessageBroker;
         this.roomManager = roomManager;
+        this.webSocketSendQueue = webSocketSendQueue;
     }
 
     @PostConstruct
@@ -124,7 +127,7 @@ public class WebSocketSessionManager {
         roomManager.joinRoom(roomId, userId, session);
 
         logger.info(
-                "Joined {} for {} {} to server {}",
+                "[WebSocketSessionManager] Joined {} for {} {} to server {}",
                 roomId,
                 userId,
                 serverId,
@@ -147,7 +150,7 @@ public class WebSocketSessionManager {
         redisMessageBroker.unsubscribeFromRoom(roomId);
 
         logger.info(
-                "Left {} from server {}",
+                "[WebSocketSessionManager] Left {} from server {}",
                 roomId,
                 serverRoomKey
         );
@@ -164,7 +167,7 @@ public class WebSocketSessionManager {
     ) {
         Objects.requireNonNull(
                 messageHandlers.get(message.getType()),
-                () -> "핸들러가 등록되지 않은 메시지 타입입니다. " + message
+                () -> "[WebSocketSessionManager] 핸들러가 등록되지 않은 메시지 타입입니다. " + message
         ).accept(message);
     }
 
@@ -184,10 +187,7 @@ public class WebSocketSessionManager {
                 // 열려있는 세션 대상으로 메시지 전송
                 if (s.isOpen()) {
                     try {
-                        // TODO : sendMessage 자체는 단순히 동기적 동작이므로 별도의 메시지 큐를 만들고 쓰레드풀을 할당하여 비동기적으로 처리할 필요가 있어보임
-                        s.sendMessage(new TextMessage(json));
-                        logger.info("Sending message to local room {}", message.getRoomId());
-
+                        webSocketSendQueue.enqueue(s, new TextMessage(json));
                     } catch (Exception e) {
                         logger.error(e.getMessage(), e);
                     }
@@ -218,16 +218,14 @@ public class WebSocketSessionManager {
 
                             try {
                                 // 1( roomManager에 유저 세션 추가
-                                // roomManager.joinRoom(targetUserId, message.getRoomId(), s);
                                 this.joinRoom(targetUserId, message.getRoomId(), s);
-                                logger.info("User {} joined room {} due to invite", targetUserId, message.getRoomId());
+                                logger.info("[WebSocketSessionManager] User {} joined room {} due to invite", targetUserId, message.getRoomId());
                                 
                                 String json = objectMapper.writeValueAsString(message);
 
                                 // 2) 초대 메시지 발송
-                                // TODO : sendMessage 자체는 단순히 동기적 동작이므로 별도의 메시지 큐를 만들고 쓰레드풀을 할당하여 비동기적으로 처리할 필요가 있어보임
-                                s.sendMessage(new TextMessage(json));
-                                logger.info("Sending invite message to user {} for room {}", targetUserId, message.getRoomId());
+                                webSocketSendQueue.enqueue(s, new TextMessage(json));
+                                logger.info("[WebSocketSessionManager] Sending invite message to user {} for room {}", targetUserId, message.getRoomId());
 
                             } catch (Exception e) {
                                 logger.error(e.getMessage(), e);
