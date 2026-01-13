@@ -39,6 +39,6 @@ out/
 .vscode/
 
 ### 환경 변수 ###
-dev.env
+chat-local-test/dev.env
 *.env
 *.sql
