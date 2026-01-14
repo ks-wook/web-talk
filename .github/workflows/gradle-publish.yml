@@ -126,7 +126,7 @@ jobs:
                     -v /var/log/app:/var/log/app \   # 🔴 로그파일 출력을 위한 volume
                     --restart always \
                     ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
-
+                "
                 
       
               # 3️⃣ Target Group 재등록 (중요)
