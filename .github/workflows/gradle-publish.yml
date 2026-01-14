@@ -123,9 +123,11 @@ jobs:
                     --name ${{ secrets.DOCKER_CONTAINERNAME }} \
                     --env-file /opt/${{ secrets.DOCKER_IMAGE_NAME }}/dev.env \
                     -p 7002:7002 \
+                    -v /var/log/app:/var/log/app \   # 🔴 로그파일 출력을 위한 volume
                     --restart always \
                     ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.DOCKER_IMAGE_NAME }}:latest
-                "
+
+                
       
               # 3️⃣ Target Group 재등록 (중요)
               aws elbv2 register-targets \
