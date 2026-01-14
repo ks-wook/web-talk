@@ -1,0 +1,3 @@
+logging:
+  file:
+    name: /var/log/app/${LOG_FILE_NAME:chat-server.log}

@@ -29,7 +29,10 @@ CREATE table user
     t_id        BIGINT AUTO_INCREMENT PRIMARY KEY   primary key,
     login_id    VARCHAR(100)                        not null,
     created_at  TIMESTAMP default CURRENT_TIMESTAMP null,
-    status_text VARCHAR(255)                        null -- 상태메시지
+    nickname    VARCHAR(255)                        null, -- 닉네임
+    status_text VARCHAR(255)                        null, -- 상태메시지
+    
+    KEY idx_user_nickname (nickname)
 );
 ```
 
