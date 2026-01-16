@@ -59,12 +59,15 @@ public class CookieUtil {
      * @param response
      */
     public static void deleteRefreshTokenCookie(HttpServletResponse response) {
-        Cookie cookie = new Cookie("onlineOpenChatRefresh", null);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath("/");
-        cookie.setMaxAge(0); // 즉시 만료
 
-        response.addCookie(cookie);
+        ResponseCookie cookie = ResponseCookie.from("onlineOpenChatRefresh", "")
+                .httpOnly(true)
+                .secure(true)          // 생성 시와 동일
+                .sameSite("None")      // 생성 시와 동일
+                .path("/")
+                .maxAge(0)             // 즉시 만료
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 }
