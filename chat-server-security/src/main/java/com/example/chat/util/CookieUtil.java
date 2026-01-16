@@ -3,6 +3,8 @@ package com.example.chat.util;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 
 import java.util.Date;
 
@@ -31,20 +33,25 @@ public class CookieUtil {
     /**
      * RefreshToken 발급 처리
      */
-    public static void addRefreshTokenCookie(HttpServletResponse response, String refreshToken, Date refreshTokenExpiredAt) {
+    public static void addRefreshTokenCookie(
+            HttpServletResponse response,
+            String refreshToken,
+            Date refreshTokenExpiredAt
+    ) {
         long expireTimeMs = refreshTokenExpiredAt.getTime();
         long nowMs = System.currentTimeMillis();
 
-        int maxAge = (int) ((expireTimeMs - nowMs) / 1000);
+        long maxAgeSeconds = (expireTimeMs - nowMs) / 1000;
 
-        Cookie cookie = new Cookie("onlineOpenChatRefresh", refreshToken);
+        ResponseCookie cookie = ResponseCookie.from("onlineOpenChatRefresh", refreshToken)
+                .httpOnly(true)
+                .secure(true)                 // HTTPS 필수
+                .path("/")
+                .sameSite("None")             // 핵심
+                .maxAge(maxAgeSeconds)
+                .build();
 
-        cookie.setHttpOnly(true);               // 프론트 스크립트에서 접근 불가 → XSS 보호
-        cookie.setSecure(false);                // 개발 테스트를 위해 http 허용
-        cookie.setPath("/");                    // 전체 경로에서 유효
-        cookie.setMaxAge(maxAge);  // 14일
-
-        response.addCookie(cookie);
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     /**
