@@ -55,7 +55,7 @@ public class AuthServiceImpl implements AuthService {
             }
 
             // 2) 유저 정보 등록
-            String defaultNickname = request.nickname() + (int)(Math.random() * 9000) + 1000;
+            String defaultNickname = request.nickname() + "#" + (int)(Math.random() * 9000) + 1000;
             User newUser = this.newUser(request.loginId(), defaultNickname);
 
             UserCredentials newCredentials = this.newUserCredentials(request.password(), newUser);
