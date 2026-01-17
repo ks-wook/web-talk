@@ -7,11 +7,14 @@
 ```
 CREATE TABLE auth_refresh_token (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_t_id BIGINT NOT NULL, -- user 테이블의 t_id 값
-    refresh_token VARCHAR(255) NOT NULL, -- jwt refreshToken 값
-    expired_at TIMESTAMP NOT NULL, -- 만료 일자 ex) 1일, 7일...
-    is_revoked TINYINT(1) NOT NULL DEFAULT 0, -- 강제 만료 처리(로그 아웃)
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    user_t_id BIGINT NOT NULL COMMENT 'user 테이블의 t_id',
+    refresh_token VARCHAR(255) NOT NULL COMMENT 'JWT Refresh Token 값',
+    expired_at TIMESTAMP NOT NULL COMMENT 'Refresh Token 만료 시각 (UTC)',
+    is_revoked TINYINT(1) NOT NULL DEFAULT 0 COMMENT '강제 만료 여부 (로그아웃, 만료 처리)',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시각',
+
+    -- 만료 토큰 정리 및 검증 성능 개선용 인덱스
+    INDEX idx_auth_refresh_token_revoke (is_revoked, expired_at)
 );
 ```
 ### user, user_credentials
@@ -43,7 +46,9 @@ CREATE TABLE friends (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL COMMENT '친구를 추가한 사용자 ID',
     friend_id BIGINT NOT NULL COMMENT '추가된 친구의 사용자 ID',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    KEY idx_user_id(userId)
 );
 ```
 
