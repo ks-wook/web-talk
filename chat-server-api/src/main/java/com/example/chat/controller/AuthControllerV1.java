@@ -2,23 +2,16 @@ package com.example.chat.controller;
 
 import com.example.chat.model.request.CreateUserRequest;
 import com.example.chat.model.request.LoginRequest;
-import com.example.chat.model.response.CreateUserResponse;
-import com.example.chat.model.response.GetMyInfoResponse;
-import com.example.chat.model.response.LoginResponse;
-import com.example.chat.model.response.LogoutResponse;
+import com.example.chat.model.response.*;
 import com.example.chat.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Arrays;
-import java.util.Optional;
 
 @Tag(name = "Auth API", description = "V1 Auth API")
 @RestController
@@ -89,21 +82,7 @@ public class AuthControllerV1 {
             description = "Refresh Token을 통해 Access Token을 재발급합니다."
     )
     @GetMapping("/reissue-access-token")
-    public String reissueAccessToken(HttpServletRequest request) {
-
-        // httpRequest의 쿠키값을 통해 RequestToken 추출
-        Optional<Cookie> refreshTokenCookie = Arrays.stream(Optional.ofNullable(request.getCookies()).orElse(new Cookie[0]))
-                .filter(cookie -> "onlineOpenChatRefresh".equals(cookie.getName()))
-                .findFirst();
-
-        if (refreshTokenCookie.isPresent()) {
-            log.info("[AuthControllerV1] Refresh Token from cookie: {}", refreshTokenCookie.get().getValue());
-        } else {
-            log.info("[AuthControllerV1] Refresh Token cookie not found.");
-        }
-
-        // TODO : Service 로직에서 DB 테이블 확인해서 RefreshToken 검증 후 AccessToken 재발급
-
-        throw new UnsupportedOperationException("Not implemented yet");
+    public ReissueAccessTokenResponse reissueAccessToken(HttpServletRequest request) {
+        return authService.reissueAccessToken(request);
     }
 }

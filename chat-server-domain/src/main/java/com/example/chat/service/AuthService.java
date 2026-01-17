@@ -2,10 +2,7 @@ package com.example.chat.service;
 
 import com.example.chat.model.request.CreateUserRequest;
 import com.example.chat.model.request.LoginRequest;
-import com.example.chat.model.response.CreateUserResponse;
-import com.example.chat.model.response.GetMyInfoResponse;
-import com.example.chat.model.response.LoginResponse;
-import com.example.chat.model.response.LogoutResponse;
+import com.example.chat.model.response.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -48,6 +45,15 @@ public interface AuthService {
             String authString,
             HttpServletRequest httpServletRequest,
             HttpServletResponse httpServletResponse
+    );
+
+    /**
+     * 액세스 토큰 재발급 처리
+     * @param httpServletRequest
+     * @return
+     */
+    ReissueAccessTokenResponse reissueAccessToken(
+            HttpServletRequest httpServletRequest
     );
 
     /**

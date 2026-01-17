@@ -4,10 +4,7 @@ import com.example.chat.common.exception.CustomException;
 import com.example.chat.common.exception.ErrorCode;
 import com.example.chat.model.request.CreateUserRequest;
 import com.example.chat.model.request.LoginRequest;
-import com.example.chat.model.response.CreateUserResponse;
-import com.example.chat.model.response.GetMyInfoResponse;
-import com.example.chat.model.response.LoginResponse;
-import com.example.chat.model.response.LogoutResponse;
+import com.example.chat.model.response.*;
 import com.example.chat.repository.AuthRefreshTokenRepository;
 import com.example.chat.repository.UserRepository;
 import com.example.chat.model.entity.AuthRefreshToken;
@@ -194,6 +191,55 @@ public class AuthServiceImpl implements AuthService {
             throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
+
+    /**
+     * Access Token 재발급
+     * @param request
+     * @return
+     */
+    @Transactional
+    public ReissueAccessTokenResponse reissueAccessToken(HttpServletRequest request) {
+
+        try {
+            // httpRequest의 쿠키값을 통해 RequestToken 추출
+            String refreshToken = CookieUtil.getRefreshTokenFromRequest(request);
+
+            if (refreshToken == null) {
+                log.info("[AuthServiceImpl] Refresh Token cookie not found.");
+                throw new CustomException(ErrorCode.REFRESH_TOKEN_IS_NOT_FOUND, "Refresh Token이 존재하지 않습니다.");
+            } else {
+                log.info("[AuthServiceImpl] Refresh Token from cookie: {}", refreshToken);
+            }
+
+            // Service 로직에서 DB 테이블 확인해서 RefreshToken 검증 후 AccessToken 재발급
+            Optional<AuthRefreshToken> searchedRefreshToken = authRefreshTokenRepository.findByRefreshToken(refreshToken);
+
+            // refreshToken이 존재하지 않거나, 이미 폐기된 토큰인 경우
+            if(searchedRefreshToken.isEmpty() || searchedRefreshToken.get().getIsRevoked()) {
+                return new ReissueAccessTokenResponse(ErrorCode.TOKEN_IS_INVALID, null);
+            }
+            else if(searchedRefreshToken.get().getExpiredAt().isBefore(DateUtil.dateToLocalDateTime(new Date()))) {
+                // dirty check - 만료된 토큰인 경우
+                // isRevoked 필드 true로 변경 -> 스케줄러는 매일 utc 기준 자정에 만료된 토큰 정리 작업 수행
+                // but, 만료된 토큰처리가 되지 않은 상태에서 reissue 요청이 들어올 수 있으므로 여기서도 처리
+                searchedRefreshToken.get().setIsRevoked(true);
+
+                return new ReissueAccessTokenResponse(ErrorCode.TOKEN_IS_INVALID, null);
+            }
+            else { // 토큰이 유효한 경우
+                Long userId = searchedRefreshToken.get().getUserId();
+
+                // 새로운 Access Token 발급
+                String newAccessToken = JWTProvider.createAccessToken(String.valueOf(userId));
+
+                return new ReissueAccessTokenResponse(ErrorCode.SUCCESS, newAccessToken);
+            }
+        }
+        catch (Exception e) {
+            return new ReissueAccessTokenResponse(ErrorCode.INTERNAL_SERVER_ERROR, null);
+        }
+    }
+
 
     /**
      * 토큰에서 유저 아이디 추출
